@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SP DRC — Base CDF Tool</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #0f0f0f; --paper: #f5f2eb; --paper-dark: #ede9df; --rule: #c8c2b4;
+  --accent: #c0392b; --success: #1a6b3c; --success-light: #eaf4ee;
+  --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--paper); color: var(--ink); font-family: var(--sans); min-height: 100vh; font-size: 14px; }
+header { background: var(--ink); color: var(--paper); padding: 18px 32px; display: flex; align-items: baseline; gap: 20px; border-bottom: 3px solid var(--accent); }
+header .org { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; opacity: 0.6; }
+header h1 { font-family: var(--mono); font-size: 18px; font-weight: 600; }
+header .subtitle { font-size: 12px; opacity: 0.5; margin-left: auto; font-family: var(--mono); }
+.container { max-width: 920px; margin: 0 auto; padding: 32px 24px 80px; }
+.steps { display: flex; margin-bottom: 32px; border: 1px solid var(--rule); overflow: hidden; border-radius: 2px; }
+.step { flex: 1; padding: 10px 10px; font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--rule); background: var(--paper-dark); border-right: 1px solid var(--rule); transition: all 0.3s; display: flex; align-items: center; gap: 6px; }
+.step:last-child { border-right: none; }
+.step.active { background: var(--ink); color: var(--paper); }
+.step.done { background: var(--success); color: white; }
+.step .num { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid currentColor; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; }
+.step.done .num { border: none; }
+.step-text { line-height: 1.3; }
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* BILINGUAL LABELS */
+.section-label { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+.section-hint { font-size: 12px; color: #666; margin-bottom: 16px; line-height: 1.6; }
+.section-hint .fr { color: #888; font-style: italic; }
+.bilingual { display: flex; flex-direction: column; gap: 1px; }
+.bilingual .en { font-weight: 500; }
+.bilingual .fr { font-size: 11px; color: #888; font-style: italic; }
+
+/* FIELD LABELS bilingual */
+.field-group { display: flex; flex-direction: column; gap: 5px; }
+.field-group label .en { display: block; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #777; }
+.field-group label .fr { display: block; font-family: var(--mono); font-size: 9px; color: #aaa; font-style: italic; text-transform: none; letter-spacing: 0; margin-top: 1px; }
+.field-group select, .field-group input { background: white; border: 1px solid var(--rule); border-radius: 2px; padding: 8px 10px; font-family: var(--sans); font-size: 13px; color: var(--ink); outline: none; transition: border-color 0.2s; }
+.field-group select:focus, .field-group input:focus { border-color: var(--ink); }
+.custom-input { display: none; margin-top: 4px; }
+.custom-input.visible { display: block; }
+.custom-note { font-family: var(--mono); font-size: 10px; color: #aaa; display: none; margin-top: 2px; }
+.custom-note.visible { display: block; }
+
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+
+.upload-area { border: 2px dashed var(--rule); border-radius: 4px; padding: 36px 24px; text-align: center; cursor: pointer; transition: all 0.2s; background: white; position: relative; margin-bottom: 20px; }
+.upload-area:hover, .upload-area.dragover { border-color: var(--ink); background: var(--paper-dark); }
+.upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.upload-icon { font-size: 36px; display: block; margin-bottom: 10px; }
+.upload-area .upload-title { font-family: var(--mono); font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.upload-area .upload-title .fr { font-size: 11px; font-weight: 400; color: #888; font-style: italic; margin-top: 2px; }
+.upload-area .upload-hint { font-size: 12px; color: #888; }
+.upload-area .upload-hint .fr { font-style: italic; }
+.preview-img { max-width: 100%; max-height: 340px; border: 1px solid var(--rule); border-radius: 3px; margin-bottom: 16px; display: none; }
+
+.processing-box { background: var(--paper-dark); border: 1px solid var(--rule); border-radius: 3px; padding: 36px 24px; text-align: center; }
+.spinner { width: 30px; height: 30px; border: 3px solid var(--rule); border-top-color: var(--ink); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.status-main { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.status-sub { font-size: 12px; color: #888; font-style: italic; }
+
+.edit-guide { background: white; border: 1px solid var(--rule); border-radius: 3px; padding: 14px 16px; margin-bottom: 16px; font-size: 12px; line-height: 2; }
+.edit-guide .guide-title { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink); margin-bottom: 8px; }
+.edit-guide .guide-title .fr { font-style: italic; color: #888; text-transform: none; letter-spacing: 0; font-size: 10px; }
+.edit-guide ul { padding-left: 16px; }
+.edit-guide li { margin-bottom: 4px; }
+.edit-guide li .fr { color: #888; font-style: italic; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; margin-bottom: 14px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+thead tr { background: var(--ink); color: var(--paper); }
+thead th { padding: 8px 7px; text-align: left; font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: 0.06em; white-space: nowrap; line-height: 1.4; }
+thead th .fr { font-weight: 400; opacity: 0.65; font-style: italic; display: block; font-size: 8px; letter-spacing: 0; }
+tbody tr { border-bottom: 1px solid var(--rule); }
+tbody tr:nth-child(even) { background: #fafaf8; }
+tbody tr:nth-child(odd) { background: white; }
+tbody td { padding: 5px 7px; vertical-align: middle; }
+tbody td input { width: 100%; border: 1px solid transparent; border-radius: 2px; padding: 4px 5px; font-family: var(--sans); font-size: 12px; background: transparent; outline: none; transition: all 0.15s; }
+tbody td input:focus { border-color: var(--accent); background: white; box-shadow: 0 0 0 2px rgba(192,57,43,0.08); }
+.td-num input { text-align: right; width: 75px; }
+.td-total { font-family: var(--mono); font-size: 11px; text-align: right; padding-right: 10px; color: #444; white-space: nowrap; }
+.remove-row { background: none; border: none; color: var(--rule); cursor: pointer; font-size: 16px; padding: 2px 4px; transition: color 0.15s; }
+.remove-row:hover { color: var(--accent); }
+.add-row-btn { background: none; border: 1px dashed var(--rule); color: #888; font-family: var(--sans); font-size: 12px; padding: 9px 14px; cursor: pointer; width: 100%; text-align: left; transition: all 0.2s; margin-bottom: 14px; border-radius: 2px; }
+.add-row-btn .fr { font-style: italic; color: #aaa; font-size: 11px; }
+.add-row-btn:hover { border-color: var(--ink); color: var(--ink); }
+.totals-bar { display: flex; justify-content: flex-end; align-items: baseline; gap: 14px; padding: 12px 0 18px; border-top: 2px solid var(--ink); }
+.totals-bar .t-label { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #666; }
+.totals-bar .t-amount { font-family: var(--mono); font-size: 22px; font-weight: 600; }
+
+.success-box { background: var(--success-light); border: 1px solid var(--success); border-radius: 3px; padding: 24px; text-align: center; margin-bottom: 20px; }
+.success-box .check { font-size: 36px; display: block; margin-bottom: 8px; }
+.success-box h3 { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--success); margin-bottom: 4px; }
+.success-box .fr { font-style: italic; color: var(--success); font-size: 13px; }
+.summary-block { background: white; border: 1px solid var(--rule); border-radius: 3px; padding: 16px 20px; margin-bottom: 20px; font-family: var(--mono); font-size: 12px; line-height: 2.2; }
+
+.btn-primary { background: var(--ink); color: var(--paper); border: none; padding: 12px 24px; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; border-radius: 2px; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; line-height: 1.4; text-align: left; }
+.btn-primary .fr { font-style: italic; font-weight: 400; opacity: 0.75; display: block; font-size: 10px; letter-spacing: 0; text-transform: none; }
+.btn-primary:hover { background: #333; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-secondary { background: transparent; color: var(--ink); border: 1.5px solid var(--ink); padding: 10px 20px; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; border-radius: 2px; transition: all 0.2s; line-height: 1.4; }
+.btn-secondary .fr { font-style: italic; font-weight: 400; opacity: 0.65; display: block; font-size: 10px; letter-spacing: 0; text-transform: none; }
+.btn-secondary:hover { background: var(--paper-dark); }
+.btn-accent { background: var(--success); color: white; border: none; padding: 12px 24px; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; border-radius: 2px; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; line-height: 1.4; text-align: left; }
+.btn-accent .fr { font-style: italic; font-weight: 400; opacity: 0.8; display: block; font-size: 10px; letter-spacing: 0; text-transform: none; }
+.btn-accent:hover { background: #145c33; }
+.btn-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+hr.divider { border: none; border-top: 1px solid var(--rule); margin: 22px 0; }
+.error-msg { font-family: var(--mono); font-size: 12px; color: var(--accent); margin-top: 10px; }
+@media (max-width: 600px) {
+  .form-grid { grid-template-columns: 1fr; }
+  header .subtitle { display: none; }
+  .steps { flex-direction: column; }
+  .step { border-right: none; border-bottom: 1px solid var(--rule); }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="org">SP DRC</span>
+  <h1>Base Purchase CDF</h1>
+  <span class="subtitle">French Request Sheet → CDF</span>
+</header>
+
+<div class="container">
+
+  <div class="steps">
+    <div class="step active" id="step1-ind">
+      <span class="num">1</span>
+      <span class="step-text">Details<br><span style="font-style:italic;opacity:0.7">Détails</span></span>
+    </div>
+    <div class="step" id="step2-ind">
+      <span class="num">2</span>
+      <span class="step-text">Upload Sheet<br><span style="font-style:italic;opacity:0.7">Télécharger</span></span>
+    </div>
+    <div class="step" id="step3-ind">
+      <span class="num">3</span>
+      <span class="step-text">Review &amp; Edit<br><span style="font-style:italic;opacity:0.7">Vérifier</span></span>
+    </div>
+    <div class="step" id="step4-ind">
+      <span class="num">4</span>
+      <span class="step-text">Download CDF<br><span style="font-style:italic;opacity:0.7">Télécharger CDF</span></span>
+    </div>
+  </div>
+
+  <!-- PANEL 1 -->
+  <div class="panel active" id="panel1">
+    <div class="section-label">Step 1 — CDF Details &nbsp;·&nbsp; <span style="font-style:italic;font-weight:400;letter-spacing:0">Étape 1 — Informations CDF</span></div>
+    <p class="section-hint">
+      Select your details from the dropdowns. Choose "+ Enter custom…" to type a value not on the list.<br>
+      <span class="fr">Sélectionnez vos informations dans les listes. Choisissez « + Entrer… » pour une valeur absente de la liste.</span>
+    </p>
+
+    <div class="form-grid">
+
+      <div class="field-group">
+        <label><span class="en">Requestor</span><span class="fr">Demandeur</span></label>
+        <select id="requestor-select" onchange="handleCombo('requestor')">
+          <option value="">— Select / Sélectionner —</option>
+          <option value="Margueritte Avurasi">Margueritte Avurasi (B1)</option>
+          <option value="Daniel Murhula">Daniel Murhula (B2)</option>
+          <option value="Louise Nzenzele">Louise Nzenzele (B3)</option>
+          <option value="Jacques Badesire">Jacques Badesire (B4)</option>
+          <option value="Birungi Basara">Birungi Basara (B5)</option>
+          <option value="Brigitte Dz'venga">Brigitte Dz'venga (B6)</option>
+          <option value="Claudine Mugisa">Claudine Mugisa (B7)</option>
+          <option value="Marie Zey">Marie Zey (B10)</option>
+          <option value="Claudine Mandesi">Claudine Mandesi (B12)</option>
+          <option value="__custom__">+ Enter custom name… / Entrer un autre nom…</option>
+        </select>
+        <input type="text" id="requestor-custom" class="custom-input" placeholder="Type name / Écrire le nom">
+        <span class="custom-note" id="requestor-note">Custom value — will appear as-is on the CDF / Valeur personnalisée</span>
+      </div>
+
+      <div class="field-group">
+        <label><span class="en">Delivery Location</span><span class="fr">Lieu de livraison</span></label>
+        <select id="location-select" onchange="handleCombo('location')">
+          <option value="">— Select / Sélectionner —</option>
+          <option>Base 1</option><option>Base 2</option><option>Base 3</option>
+          <option>Base 4</option><option>Base 5</option><option>Base 6</option>
+          <option>Base 7</option><option>Base 8</option><option>Base 9</option>
+          <option>Base 10</option><option>Base 12</option><option>Base 14</option>
+          <option>Base 15</option>
+          <option value="__custom__">+ Enter custom location… / Entrer un autre lieu…</option>
+        </select>
+        <input type="text" id="location-custom" class="custom-input" placeholder="Type location / Écrire le lieu">
+        <span class="custom-note" id="location-note">Custom value — will appear as-is / Valeur personnalisée</span>
+      </div>
+
+      <div class="field-group">
+        <label><span class="en">Speedkey</span><span class="fr">Code speedkey</span></label>
+        <select id="speedkey-select" onchange="handleCombo('speedkey')">
+          <option value="">— Select / Sélectionner —</option>
+          <option>04192ANHQ</option>
+          <option>05417AIBAS</option>
+          <option value="__custom__">+ Enter custom speedkey… / Entrer un autre speedkey…</option>
+        </select>
+        <input type="text" id="speedkey-custom" class="custom-input" placeholder="Type speedkey code">
+        <span class="custom-note" id="speedkey-note">Custom value — will appear as-is / Valeur personnalisée</span>
+      </div>
+
+      <div class="field-group">
+        <label><span class="en">Receipt Date</span><span class="fr">Date du reçu</span></label>
+        <input type="date" id="receipt-date">
+      </div>
+
+      <div class="field-group">
+        <label><span class="en">Currency</span><span class="fr">Devise</span></label>
+        <select id="currency">
+          <option value="CDF" selected>CDF — Francs Congolais</option>
+          <option value="USD">USD — Dollars américains</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <label><span class="en">Account Number</span><span class="fr">Numéro de compte</span></label>
+        <input type="text" id="account-no" value="750300" placeholder="e.g. 750300">
+      </div>
+
+    </div>
+
+    <div class="error-msg" id="step1-error"></div>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="validateStep1()">
+        Next — Upload Sheet →
+        <span class="fr">Suivant — Télécharger la feuille →</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- PANEL 2 -->
+  <div class="panel" id="panel2">
+    <div class="section-label">Step 2 — Upload Request Sheet &nbsp;·&nbsp; <span style="font-style:italic;font-weight:400;letter-spacing:0">Étape 2 — Télécharger la feuille</span></div>
+    <p class="section-hint">
+      Take a clear, well-lit photo of the handwritten purchase request sheet and upload it here. The AI will read each line item automatically.<br>
+      <span class="fr">Prenez une photo claire et bien éclairée de la feuille de demande d'achat manuscrite. L'IA lira chaque ligne automatiquement.</span>
+    </p>
+
+    <img id="preview-img" class="preview-img">
+
+    <div class="upload-area" id="upload-area">
+      <input type="file" id="file-input" accept="image/*">
+      <span class="upload-icon">📋</span>
+      <div class="upload-title">
+        Drop the photo here or tap to browse
+        <div class="fr">Déposez la photo ici ou appuyez pour parcourir</div>
+      </div>
+      <div class="upload-hint">
+        JPG or PNG — one photo per CDF
+        <div class="fr">JPG ou PNG — une seule photo par CDF</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="goToStep(1)">
+        ← Back
+        <span class="fr">Retour</span>
+      </button>
+      <button class="btn-primary" id="scan-btn" onclick="scanImage()" disabled>
+        ✦ Read with AI →
+        <span class="fr">Lire avec l'IA →</span>
+      </button>
+    </div>
+    <div class="error-msg" id="step2-error"></div>
+  </div>
+
+  <!-- PANEL 3: PROCESSING -->
+  <div class="panel" id="panel3">
+    <div class="processing-box">
+      <div class="spinner"></div>
+      <div class="status-main">Reading request sheet… / Lecture de la feuille…</div>
+      <div class="status-sub">Extracting items and translating French to English · Extraction des articles et traduction en anglais</div>
+    </div>
+  </div>
+
+  <!-- PANEL 4: REVIEW -->
+  <div class="panel" id="panel4">
+    <div class="section-label">Step 3 — Review &amp; Edit &nbsp;·&nbsp; <span style="font-style:italic;font-weight:400;letter-spacing:0">Étape 3 — Vérifier et modifier</span></div>
+    <p class="section-hint">
+      The AI has read your request sheet. <strong>Please check every line carefully before downloading.</strong> Rows highlighted in yellow have a mismatch between the calculated and written totals.<br>
+      <span class="fr">L'IA a lu votre feuille. <strong>Vérifiez chaque ligne attentivement avant de télécharger.</strong></span>
+    </p>
+
+    <div class="edit-guide">
+      <div class="guide-title">
+        What you can edit — click any cell to change it
+        <span class="fr"> · Ce que vous pouvez modifier — cliquez sur une cellule pour la changer</span>
+      </div>
+      <ul>
+        <li><strong>Description (French) / Description (Français)</strong> — <span class="fr">Corrigez le texte français mal lu</span> Correct any mis-read French text</li>
+        <li><strong>Description (English) / Description (Anglais)</strong> — <span class="fr">Corrigez ou améliorez la traduction</span> Correct or improve the translation</li>
+        <li><strong>Unit / Unité</strong> — e.g. kg, pcs, litre, sachet <span class="fr">· par exemple kg, pcs, litre, sachet</span></li>
+        <li><strong>Qty / Quantité</strong> — <span class="fr">Quantité de l'article</span> Quantity of the item</li>
+        <li><strong>Unit Price / Prix unitaire</strong> — <span class="fr">Prix par unité</span> Price per unit</li>
+      </ul>
+      <div style="margin-top:8px;font-size:11px;color:#888;">
+        Use <strong>+ Add line item</strong> for anything the AI missed &nbsp;·&nbsp; <span class="fr">Utilisez <strong>+ Ajouter</strong> pour les articles manquants</span><br>
+        Use <strong>×</strong> to remove a row that should not be there &nbsp;·&nbsp; <span class="fr">Utilisez <strong>×</strong> pour supprimer une ligne incorrecte</span>
+      </div>
+    </div>
+
+    <div id="total-check-area" style="margin-bottom:12px"></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th style="min-width:130px">Description (French)<span class="fr">Français</span></th>
+            <th style="min-width:130px">Description (English)<span class="fr">Anglais</span></th>
+            <th>Unit<span class="fr">Unité</span></th>
+            <th>Qty<span class="fr">Qté</span></th>
+            <th>Unit Price<span class="fr">Prix unit.</span></th>
+            <th style="text-align:right;padding-right:10px">Line Total<span class="fr">Total ligne</span></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="items-body"></tbody>
+      </table>
+    </div>
+
+    <button class="add-row-btn" onclick="addRow()">
+      + Add a line item manually &nbsp;·&nbsp; <span class="fr">Ajouter une ligne manuellement</span>
+    </button>
+
+    <div class="totals-bar">
+      <span class="t-label">Total</span>
+      <span class="t-amount" id="grand-total">—</span>
+    </div>
+
+    <hr class="divider">
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="goToStep(2)">
+        ← Re-upload
+        <span class="fr">Retélécharger</span>
+      </button>
+      <button class="btn-primary" onclick="goToStep(5)">
+        Looks Good — Generate CDF →
+        <span class="fr">Tout est correct — Générer le CDF →</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- PANEL 5: DOWNLOAD -->
+  <div class="panel" id="panel5">
+    <div class="section-label">Step 4 — Download &nbsp;·&nbsp; <span style="font-style:italic;font-weight:400;letter-spacing:0">Étape 4 — Télécharger</span></div>
+    <div class="success-box">
+      <span class="check">✓</span>
+      <h3>CDF Ready / CDF Prêt</h3>
+      <p class="fr">Le formulaire a été rempli dans le modèle officiel SP DRC.</p>
+      <p>Filled into the official SP DRC template with French and English descriptions.</p>
+    </div>
+    <div class="summary-block" id="summary-block"></div>
+    <div class="btn-row">
+      <button class="btn-accent" id="download-btn" onclick="downloadCDF()">
+        ⬇ Download CDF.xlsx
+        <span class="fr">Télécharger CDF.xlsx</span>
+      </button>
+      <button class="btn-secondary" onclick="startOver()">
+        Start New CDF
+        <span class="fr">Nouveau CDF</span>
+      </button>
+    </div>
+    <div class="error-msg" id="step5-error"></div>
+  </div>
+
+</div>
+
+<script>
+const SERVER_URL = "https://cdf-base-server.onrender.com";
+let uploadedFile    = null;
+let lineItems       = [];
+
+document.getElementById("receipt-date").value = new Date().toISOString().split("T")[0];
+
+function goToStep(n) {
+  document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+  const map = {1:"panel1",2:"panel2",3:"panel3",4:"panel4",5:"panel5"};
+  document.getElementById(map[n]).classList.add("active");
+  window.scrollTo(0, 0);
+  const display = n >= 5 ? 4 : n === 3 ? 2 : n;
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById("step"+i+"-ind");
+    el.classList.remove("active","done");
+    if (i < display) el.classList.add("done");
+    else if (i === display) el.classList.add("active");
+  }
+  if (n === 5) buildSummary();
+}
+
+function handleCombo(field) {
+  const sel  = document.getElementById(field + "-select");
+  const inp  = document.getElementById(field + "-custom");
+  const note = document.getElementById(field + "-note");
+  const isCustom = sel.value === "__custom__";
+  inp.classList.toggle("visible", isCustom);
+  note.classList.toggle("visible", isCustom);
+  if (isCustom) inp.focus();
+}
+
+function getComboValue(field) {
+  const sel = document.getElementById(field + "-select");
+  const inp = document.getElementById(field + "-custom");
+  return sel.value === "__custom__" ? inp.value.trim() : sel.value;
+}
+
+function validateStep1() {
+  const errEl = document.getElementById("step1-error");
+  if (!getComboValue("requestor")) { errEl.textContent = "Please select or enter a requestor. / Veuillez sélectionner un demandeur."; return; }
+  if (!getComboValue("location"))  { errEl.textContent = "Please select or enter a delivery location. / Veuillez sélectionner un lieu de livraison."; return; }
+  if (!getComboValue("speedkey"))  { errEl.textContent = "Please select or enter a speedkey. / Veuillez sélectionner un speedkey."; return; }
+  if (!document.getElementById("receipt-date").value) { errEl.textContent = "Please enter the receipt date. / Veuillez entrer la date du reçu."; return; }
+  errEl.textContent = "";
+  goToStep(2);
+}
+
+const fileInput  = document.getElementById("file-input");
+const uploadArea = document.getElementById("upload-area");
+
+fileInput.addEventListener("change", e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+uploadArea.addEventListener("dragover", e => { e.preventDefault(); uploadArea.classList.add("dragover"); });
+uploadArea.addEventListener("dragleave", () => uploadArea.classList.remove("dragover"));
+uploadArea.addEventListener("drop", e => {
+  e.preventDefault(); uploadArea.classList.remove("dragover");
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+
+function handleFile(file) {
+  if (!file.type.startsWith("image/")) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1800;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else       { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      const compressed = canvas.toDataURL("image/jpeg", 0.90);
+      uploadedFile = { dataUrl: compressed, name: file.name, mediaType: "image/jpeg" };
+      const prev = document.getElementById("preview-img");
+      prev.src = compressed; prev.style.display = "block";
+      uploadArea.style.padding = "16px";
+      uploadArea.querySelector(".upload-title").innerHTML = esc(file.name);
+      uploadArea.querySelector(".upload-hint").innerHTML = 'Tap to change photo / <span class="fr">Appuyez pour changer la photo</span>';
+      document.getElementById("scan-btn").disabled = false;
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function scanImage() {
+  if (!uploadedFile) return;
+  document.getElementById("step2-error").textContent = "";
+  goToStep(3);
+  try {
+    const formData = new FormData();
+    const res  = await fetch(uploadedFile.dataUrl);
+    const blob = await res.blob();
+    formData.append("image", blob, uploadedFile.name);
+    const response = await fetch(`${SERVER_URL}/scan-request`, { method: "POST", body: formData });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Server error ${response.status}`);
+    }
+    const data = await response.json();
+    lineItems = data.items.map(it => ({
+      description_fr: it.description_fr || "",
+      description_en: it.description_en || "",
+      unit:           it.unit           || "",
+      qty:            it.qty        != null ? Number(it.qty)        : 1,
+      unit_price:     it.unit_price != null ? Number(it.unit_price) : 0,
+      cout_total:     it.cout_total != null ? Number(it.cout_total) : null,
+    }));
+    renderTable();
+    goToStep(4);
+  } catch (err) {
+    console.error(err);
+    document.getElementById("step2-error").textContent = `Error: ${err.message}`;
+    goToStep(2);
+  }
+}
+
+function checkMismatch(item) {
+  // Returns true if qty × unit_price does not match cout_total (within 1 CDF rounding tolerance)
+  if (item.cout_total == null || item.qty == null || item.unit_price == null) return false;
+  const calc = Math.round(item.qty * item.unit_price);
+  const written = Math.round(item.cout_total);
+  return Math.abs(calc - written) > 1;
+}
+
+function renderTable() {
+  const tbody = document.getElementById("items-body");
+  tbody.innerHTML = "";
+  lineItems.forEach((item, i) => appendRow(tbody, item, i));
+  updateTotal();
+  renderTotalCheck();
+}
+
+function renderTotalCheck() {
+  const el = document.getElementById("total-check-area");
+  if (!el) return;
+  const mismatches = lineItems.filter(it => checkMismatch(it));
+  el.innerHTML = mismatches.length > 0
+    ? `<div style="padding:10px 14px;background:#fff8e1;border:1px solid #f0c040;border-radius:3px;font-size:12px;font-family:var(--mono);">
+        ⚠ ${mismatches.length} line item${mismatches.length>1?"s have":"has"} a mismatch between qty × unit price and the written total. Rows highlighted in yellow — please verify.
+      </div>`
+    : "";
+}
+
+function appendRow(tbody, item, i) {
+  const currency  = document.getElementById("currency").value;
+  const lineTotal = (item.qty || 0) * (item.unit_price || 0);
+  const mismatch  = checkMismatch(item);
+  const tr = document.createElement("tr");
+  tr.dataset.idx = i;
+  if (mismatch) tr.style.background = "#fff8e1";
+  const mismatchIcon = mismatch
+    ? `<span title="Mismatch: qty × unit price ≠ written total (${currency} ${Math.round(item.cout_total).toLocaleString()})" style="color:#c0a000;cursor:help;margin-left:4px">⚠</span>`
+    : "";
+  tr.innerHTML = `
+    <td style="font-family:var(--mono);font-size:10px;color:#bbb;padding-left:8px">${i+1}</td>
+    <td><input type="text" value="${esc(item.description_fr)}" placeholder="Description FR" onchange="updateItem(${i},'description_fr',this.value)"></td>
+    <td><input type="text" value="${esc(item.description_en)}" placeholder="Description EN" onchange="updateItem(${i},'description_en',this.value)"></td>
+    <td><input type="text" value="${esc(item.unit)}" style="width:60px" placeholder="unit" onchange="updateItem(${i},'unit',this.value)"></td>
+    <td class="td-num"><input type="number" value="${item.qty}" min="0" step="1" onchange="updateItem(${i},'qty',+this.value)"></td>
+    <td class="td-num"><input type="number" value="${item.unit_price}" min="0" step="0.01" onchange="updateItem(${i},'unit_price',+this.value)"></td>
+    <td class="td-total">${currency} ${lineTotal.toFixed(2)}${mismatchIcon}</td>
+    <td><button class="remove-row" onclick="removeRow(${i})" title="Remove / Supprimer">×</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function updateItem(i, field, val) {
+  lineItems[i][field] = val;
+  const row = document.querySelector(`tr[data-idx="${i}"]`);
+  if (row) {
+    const currency = document.getElementById("currency").value;
+    const item     = lineItems[i];
+    const lt       = (item.qty || 0) * (item.unit_price || 0);
+    const mismatch = checkMismatch(item);
+    row.style.background = mismatch ? "#fff8e1" : "";
+    const icon = mismatch
+      ? `<span title="Mismatch: qty × unit price ≠ written total (${currency} ${Math.round(item.cout_total).toLocaleString()})" style="color:#c0a000;cursor:help;margin-left:4px">⚠</span>`
+      : "";
+    row.querySelector(".td-total").innerHTML = `${currency} ${lt.toFixed(2)}${icon}`;
+  }
+  updateTotal();
+  renderTotalCheck();
+}
+
+function removeRow(i) { lineItems.splice(i, 1); renderTable(); }
+
+function addRow() {
+  lineItems.push({ description_fr: "", description_en: "", unit: "", qty: 1, unit_price: 0 });
+  renderTable();
+  // Focus the first input of the new row
+  const rows = document.querySelectorAll("#items-body tr");
+  const last = rows[rows.length - 1];
+  if (last) last.querySelector("input").focus();
+}
+
+function updateTotal() {
+  const currency = document.getElementById("currency").value;
+  const total = lineItems.reduce((s, it) => s + (it.qty || 0) * (it.unit_price || 0), 0);
+  document.getElementById("grand-total").textContent = `${currency} ${total.toFixed(2)}`;
+}
+
+function buildSummary() {
+  const currency = document.getElementById("currency").value;
+  const total    = lineItems.reduce((s, it) => s + (it.qty || 0) * (it.unit_price || 0), 0);
+  document.getElementById("summary-block").innerHTML = `
+    <div>Requestor / Demandeur: <strong>${esc(getComboValue("requestor"))}</strong></div>
+    <div>Location / Lieu: <strong>${esc(getComboValue("location"))}</strong></div>
+    <div>Speedkey: <strong>${esc(getComboValue("speedkey"))}</strong></div>
+    <div>Account No. / N° de compte: <strong>${esc(document.getElementById("account-no").value)}</strong></div>
+    <div>Date: <strong>${esc(document.getElementById("receipt-date").value)}</strong></div>
+    <div>Currency / Devise: <strong>${currency}</strong></div>
+    <div>Line items / Lignes: <strong>${lineItems.length}</strong></div>
+    <div>Total: <strong>${currency} ${total.toFixed(2)}</strong></div>
+  `;
+}
+
+async function downloadCDF() {
+  const errEl = document.getElementById("step5-error");
+  const btn   = document.getElementById("download-btn");
+  errEl.textContent = "";
+  btn.disabled = true;
+  btn.innerHTML = "⏳ Generating… / Génération en cours…";
+  try {
+    const payload = {
+      requestor:      getComboValue("requestor"),
+      location:       getComboValue("location"),
+      speedkey:       getComboValue("speedkey"),
+      account_no:     document.getElementById("account-no").value.trim() || "750300",
+      date_submitted: document.getElementById("receipt-date").value,
+      currency:       document.getElementById("currency").value,
+      items:          lineItems
+    };
+    const response = await fetch(`${SERVER_URL}/fill-cdf-base`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Server error ${response.status}`);
+    }
+    const blob     = await response.blob();
+    const safeName = getComboValue("requestor").replace(/\s+/g, "_") || "Staff";
+    const dateStr  = document.getElementById("receipt-date").value.replace(/-/g, "") || "nodate";
+    const filename = `CDF_Base_${safeName}_${dateStr}.xlsx`;
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  } catch (err) {
+    errEl.textContent = `Error: ${err.message}`;
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '⬇ Download CDF.xlsx <span class="fr">Télécharger CDF.xlsx</span>';
+  }
+}
+
+function startOver() {
+  uploadedFile = null; lineItems = [];
+  ["requestor","location","speedkey"].forEach(f => {
+    document.getElementById(f+"-select").value = "";
+    document.getElementById(f+"-custom").classList.remove("visible");
+    document.getElementById(f+"-note").classList.remove("visible");
+  });
+  document.getElementById("receipt-date").value = new Date().toISOString().split("T")[0];
+  document.getElementById("currency").value = "CDF";
+  document.getElementById("account-no").value = "750300";
+  const prev = document.getElementById("preview-img");
+  prev.style.display = "none"; prev.src = "";
+  document.getElementById("scan-btn").disabled = true;
+  document.getElementById("file-input").value = "";
+  const ua = document.getElementById("upload-area");
+  ua.style.padding = "36px 24px";
+  ua.querySelector(".upload-title").innerHTML = 'Drop the photo here or tap to browse<div class="fr">Déposez la photo ici ou appuyez pour parcourir</div>';
+  ua.querySelector(".upload-hint").innerHTML = 'JPG or PNG — one photo per CDF<div class="fr">JPG ou PNG — une seule photo par CDF</div>';
+  goToStep(1);
+}
+
+function esc(str) {
+  return String(str||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+</script>
+</body>
+</html>
